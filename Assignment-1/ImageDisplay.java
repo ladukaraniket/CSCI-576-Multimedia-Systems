@@ -1,14 +1,18 @@
 
-import java.awt.*;
-import java.awt.image.*;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionListener;
-import java.io.*;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.RandomAccessFile;
 import java.util.Arrays;
-import java.lang.*;
-import javax.swing.*;
+
+import javax.swing.ImageIcon;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
 
 class ImageParams {
 	private int imageWidth;
@@ -165,69 +169,20 @@ public class ImageDisplay {
 	 * into the
 	 * provided BufferedImage.
 	 */
-	private void readImageRGB(int windowWidth, int windowHeight, String imgPath, BufferedImage img) {
-		try {
-			int frameLength = windowWidth * windowHeight * 3;
-
-			File file = new File(imgPath);
-			RandomAccessFile raf = new RandomAccessFile(file, "r");
-			raf.seek(0);
-
-			long len = frameLength;
-			byte[] bytes = new byte[(int) len];
-
-			raf.read(bytes);
-
-			int some = 0;
-			int ind = 0;
-
-			byte[] red = Arrays.copyOfRange(bytes, 0, windowWidth * windowHeight);
-			byte[] green = Arrays.copyOfRange(bytes, windowWidth * windowHeight, windowWidth * windowHeight * 2);
-			byte[] blue = Arrays.copyOfRange(bytes, windowWidth * windowHeight * 2, bytes.length);
-
-			for (int y = 0; y < windowHeight; y++) {
-				for (int x = 0; x < windowWidth; x++) {
-					// byte r = bytes[ind];
-					// byte g = bytes[ind + windowHeight * windowWidth];
-					// byte b = bytes[ind + windowHeight * windowWidth * 2];
-
-					byte r = red[ind];
-					byte g = green[ind];
-					byte b = blue[ind];
-
-					int pix = 0xff000000 | ((r & 0xff) << 16) | ((g & 0xff) << 8) | (b & 0xff);
-					// int pix = ((a << 24) + (r << 16) + (g << 8) + b);
-					img.setRGB(x, y, pix);
-					ind++;
-				}
-			}
-
-		} catch (FileNotFoundException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
-
 	private void readScaledImageRGB() {
 		try {
-			int frameLength = this.window.getWindowWidth() * this.window.getWindowHeight() * 3;
-			float samplingFactor = (float) (1.0 / this.window.getScalingFactor());
 			// this.offsetX = (int) ((1.0 - 1.0 / samplingFactor) / 2.0 *
 			// this.window.getWindowWidth());
 			// this.offsetY = (int) ((1.0 - 1.0 / samplingFactor) / 2.0 *
 			// this.window.getWindowHeight());
-			this.newWidth = (int) (1.0 / samplingFactor * this.window.getWindowWidth());
-			this.newHeight = (int) (1.0 / samplingFactor * this.window.getWindowHeight());
+			this.newWidth = (int) (1.0 / this.window.getSamplingFactor() * this.window.getWindowWidth());
+			this.newHeight = (int) (1.0 / this.window.getSamplingFactor() * this.window.getWindowHeight());
 
-			System.out.println("frameLength " + frameLength);
-			System.out.println("samplingFactor " + samplingFactor);
+			System.out.println("samplingFactor " + this.window.getSamplingFactor());
 			System.out.println("offsetX " + offsetX);
 			System.out.println("offsetY " + offsetY);
 			System.out.println("newWidth " + newWidth);
 			System.out.println("newHeight " + newHeight);
-
-			int ind = 0;
 
 			// Render the image as per scale
 			renderDefault();
