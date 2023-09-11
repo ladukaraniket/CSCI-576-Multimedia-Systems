@@ -17,11 +17,7 @@ class ImageParams {
 	byte[] red;
 	byte[] green;
 	byte[] blue;
-	byte[] redOG;
-	byte[] greenOG;
-	byte[] blueOG;
 
-	boolean is1080;
 	int imageScale;
 
 	public ImageParams(String imgPath) {
@@ -33,7 +29,6 @@ class ImageParams {
 			raf.seek(0);
 
 			this.imageScale = (int) Math.sqrt((int) raf.length() / (1920 * 1080 * 3));
-			System.out.println("imageScale " + imageScale);
 			this.setFrameLength((int) raf.length());
 
 			byte[] bytes = new byte[this.frameLength];
@@ -45,50 +40,13 @@ class ImageParams {
 			this.imageHeight = 1080 * imageScale;
 			System.out.println("imageHeight " + imageHeight);
 
-			if (this.imageScale == 1) { // Image is a 1920 x 1080 image
-				this.is1080 = true;
-
-				this.red = Arrays.copyOfRange(bytes, 0, frameLength / 3);
-				this.green = Arrays.copyOfRange(bytes, frameLength / 3, frameLength / 3 * 2);
-				this.blue = Arrays.copyOfRange(bytes, frameLength / 3 * 2, frameLength);
-
-			} else {
-				this.is1080 = false;
-
-				this.redOG = Arrays.copyOfRange(bytes, 0, frameLength / 3);
-				this.greenOG = Arrays.copyOfRange(bytes, frameLength / 3, frameLength / 3 * 2);
-				this.blueOG = Arrays.copyOfRange(bytes, frameLength / 3 * 2, frameLength);
-
-				sampleTo1080(); // this will sample the large image to 1920 x 1080
-			}
+			this.red = Arrays.copyOfRange(bytes, 0, frameLength / 3);
+			this.green = Arrays.copyOfRange(bytes, frameLength / 3, frameLength / 3 * 2);
+			this.blue = Arrays.copyOfRange(bytes, frameLength / 3 * 2, frameLength);
 
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-
-	}
-
-	public void sampleTo1080() {
-
-		int pixInd;
-		int pushInd = 0;
-
-		this.red = new byte[2073600];
-		this.green = new byte[2073600];
-		this.blue = new byte[2073600];
-
-		for (float row = 0; row < this.imageWidth; row += this.imageScale) {
-			for (float col = 0; col < this.imageHeight; col += this.imageScale) {
-				pixInd = (int) row + (int) col * this.imageWidth;
-
-				this.red[pushInd] = this.redOG[pixInd];
-				this.green[pushInd] = this.greenOG[pixInd];
-				this.blue[pushInd] = this.blueOG[pixInd];
-
-				pushInd++;
-			}
-		}
-		System.out.println("pushInd " + pushInd);
 
 	}
 
@@ -123,15 +81,8 @@ class WindowParams {
 	int windowHeight;
 	int overlayDim;
 	float scalingFactor;
+	float samplingFactor;
 	boolean antiAliasingEnabled;
-
-	public int getOverlayDim() {
-		return overlayDim;
-	}
-
-	public void setOverlayDim(int overlayDim) {
-		this.overlayDim = overlayDim;
-	}
 
 	public WindowParams(int windowWidth, int windowHeight) {
 		this.windowWidth = windowWidth;
@@ -161,12 +112,21 @@ class WindowParams {
 		this.windowHeight = windowHeight;
 	}
 
+	public int getOverlayDim() {
+		return overlayDim;
+	}
+
+	public void setOverlayDim(int overlayDim) {
+		this.overlayDim = overlayDim;
+	}
+
 	public float getScalingFactor() {
 		return scalingFactor;
 	}
 
 	public void setScalingFactor(float scalingFactor) {
 		this.scalingFactor = scalingFactor;
+		this.samplingFactor = (float) (1.0 / scalingFactor);
 	}
 
 	public boolean isAntiAliasingEnabled() {
@@ -175,6 +135,10 @@ class WindowParams {
 
 	public void setAntiAliasingEnabled(boolean antiAliasingEnabled) {
 		this.antiAliasingEnabled = antiAliasingEnabled;
+	}
+
+	public float getSamplingFactor() {
+		return samplingFactor;
 	}
 
 }
@@ -249,8 +213,10 @@ public class ImageDisplay {
 		try {
 			int frameLength = this.window.getWindowWidth() * this.window.getWindowHeight() * 3;
 			float samplingFactor = (float) (1.0 / this.window.getScalingFactor());
-			this.offsetX = (int) ((1.0 - 1.0 / samplingFactor) / 2.0 * this.window.getWindowWidth());
-			this.offsetY = (int) ((1.0 - 1.0 / samplingFactor) / 2.0 * this.window.getWindowHeight());
+			// this.offsetX = (int) ((1.0 - 1.0 / samplingFactor) / 2.0 *
+			// this.window.getWindowWidth());
+			// this.offsetY = (int) ((1.0 - 1.0 / samplingFactor) / 2.0 *
+			// this.window.getWindowHeight());
 			this.newWidth = (int) (1.0 / samplingFactor * this.window.getWindowWidth());
 			this.newHeight = (int) (1.0 / samplingFactor * this.window.getWindowHeight());
 
@@ -264,80 +230,11 @@ public class ImageDisplay {
 			int ind = 0;
 
 			// Render the image as per scale
-			int renderStartX = this.offsetX;
-			int renderStartY = this.offsetY;
-			for (float y = 0; y < this.window.getWindowHeight(); y += samplingFactor) {
-				int xcoord = renderStartX;
-				for (float x = 0; x < this.window.getWindowWidth(); x += samplingFactor, xcoord++) {
-
-					ind = (int) x + (int) y * this.window.getWindowWidth();
-
-					byte r = this.image.red[ind];
-					byte g = this.image.green[ind];
-					byte b = this.image.blue[ind];
-
-					int pix = 0xff000000 | ((r & 0xff) << 16) | ((g & 0xff) << 8) | (b & 0xff);
-
-					// TODO remove try catch
-					try {
-						this.imgOne.setRGB(xcoord, renderStartY, pix);
-
-					} catch (Exception e) {
-						System.out.println("xcoord " + xcoord);
-						break;
-					}
-				}
-				renderStartY++;
-			}
+			renderDefault();
 
 			// Apply Anti-Aliasing
 			if (this.window.antiAliasingEnabled) {
 				applyAntiAliasing();
-			}
-
-			// Display grid
-			int gridSize = this.window.getOverlayDim();
-
-			int pointerCoordX = offsetX + newWidth - 50;
-			int pointerCoordY = offsetY + newHeight - 50;
-			System.out.println("pointerCoordX " + pointerCoordX);
-			System.out.println("pointerCoordY " + pointerCoordY);
-
-			int OGcoordX, OGcoordY;
-
-			OGcoordX = pointerCoordX
-					+ (int) (Math.signum(pointerCoordX - (this.window.getWindowWidth() / 2))
-							* (1.0 - this.window.getScalingFactor()) * this.window.getWindowWidth() / 2.0);
-			OGcoordY = pointerCoordY
-					+ (int) (Math.signum(pointerCoordY - (this.window.getWindowHeight() / 2))
-							* (1.0 - this.window.getScalingFactor()) * this.window.getWindowHeight()
-							/ 2.0);
-
-			System.out.println("(1.0 - scaleFactor) * windowWidth / 2.0 "
-					+ ((1.0 - this.window.getScalingFactor()) * this.window.getWindowWidth() / 2.0));
-			System.out.println("(1.0 - scaleFactor) * windowHeight / 2.0 "
-					+ (1.0 - this.window.getScalingFactor()) * this.window.getWindowHeight() / 2.0);
-			System.out.println("OGcoordX " + OGcoordX);
-			System.out.println("OGcoordY " + OGcoordY);
-
-			for (int boxRow = pointerCoordX - gridSize; boxRow < pointerCoordX + gridSize; boxRow++) {
-				for (int boxCol = pointerCoordY - gridSize,
-						yCoord = OGcoordY; boxCol < pointerCoordY + gridSize; boxCol++) {
-
-					if (boxRow >= offsetX && boxRow <= offsetX + newWidth && boxCol >= offsetY
-							&& boxCol <= offsetY + newHeight && OGcoordX > 0 && OGcoordX < this.window.getWindowWidth()
-							&& yCoord > 0
-							&& yCoord < this.window.getWindowHeight()) {
-
-						ind = (int) OGcoordX + (int) yCoord * this.window.getWindowWidth();
-						int boxPix = 0xff000000 | ((image.red[ind] & 0xff) << 16) | ((image.green[ind] & 0xff) << 8)
-								| (image.blue[ind] & 0xff);
-						this.imgOne.setRGB(boxRow, boxCol, boxPix);
-					}
-
-					yCoord++;
-				}
-				OGcoordX++;
 			}
 
 		} catch (Exception e) {
@@ -345,14 +242,42 @@ public class ImageDisplay {
 		}
 	}
 
-	private void applyAntiAliasing() {
+	private void renderDefault() {
+		int renderStartX = 0;
+		int renderStartY = 0;
+		int ind;
+		for (float y = 0; y < this.window.getWindowHeight(); y += this.window.getSamplingFactor()) {
+			int xcoord = renderStartX;
+			for (float x = 0; x < this.window.getWindowWidth(); x += this.window.getSamplingFactor(), xcoord++) {
+
+				ind = (int) x + (int) y * this.window.getWindowWidth();
+
+				byte r = this.image.red[ind];
+				byte g = this.image.green[ind];
+				byte b = this.image.blue[ind];
+
+				int pix = 0xff000000 | ((r & 0xff) << 16) | ((g & 0xff) << 8) | (b & 0xff);
+
+				// TODO remove try catch
+				try {
+					this.imgOne.setRGB(xcoord, renderStartY, pix);
+
+				} catch (Exception e) {
+					break;
+				}
+			}
+			renderStartY++;
+		}
+	}
+
+	public void applyAntiAliasing() {
 		int AAGridSize = 1; // creates a W x W filter where W = 2*AAGridSize + 1
 		int pixVal;
 		int aaPixRed, aaPixGreen, aaPixBlue;
 		int count;
 
-		for (int row = this.offsetX; row < this.offsetX + this.newWidth; row++) {
-			for (int col = this.offsetY; col < this.offsetY + this.newHeight; col++) {
+		for (int row = 0; row < this.newWidth; row++) {
+			for (int col = 0; col < this.newHeight; col++) {
 				aaPixRed = 0;
 				aaPixGreen = 0;
 				aaPixBlue = 0;
@@ -361,8 +286,8 @@ public class ImageDisplay {
 				for (int aaRow = row - AAGridSize; aaRow <= row + AAGridSize; aaRow++) {
 					for (int aaCol = col - AAGridSize; aaCol <= col + AAGridSize; aaCol++) {
 
-						if (aaRow >= this.offsetX && aaRow <= this.offsetX + this.newWidth && aaCol >= this.offsetY
-								&& aaCol <= this.offsetY + this.newHeight) {
+						if (aaRow >= 0 && aaRow < this.newWidth && aaCol >= 0
+								&& aaCol < this.newHeight) {
 
 							pixVal = this.imgOne.getRGB(aaRow, aaCol);
 
@@ -383,29 +308,62 @@ public class ImageDisplay {
 					this.imgOne.setRGB(row, col, aaPix);
 
 				} catch (Exception e) {
-					System.out.println("col " + col);
-					System.out.println("row " + row);
-
 					break;
 				}
 			}
 		}
 	}
 
+	public void displayOverLay(int x, int y) {
+
+		int gridSize = this.window.getOverlayDim();
+		int ind;
+
+		int pointerCoordX = x - 8;
+		int pointerCoordY = y - 32;
+
+		int OGcoordX, OGcoordY;
+
+		OGcoordX = (int) (pointerCoordX * this.window.getSamplingFactor());
+		OGcoordY = (int) (pointerCoordY * this.window.getSamplingFactor());
+
+		OGcoordX -= this.window.getOverlayDim();
+
+		for (int boxRow = pointerCoordX - gridSize; boxRow < pointerCoordX + gridSize; boxRow++) {
+			for (int boxCol = pointerCoordY - gridSize,
+					yCoord = OGcoordY - this.window.getOverlayDim(); boxCol < pointerCoordY + gridSize; boxCol++) {
+
+				if (boxRow >= 0 && boxRow < newWidth && boxCol >= 0
+						&& boxCol < newHeight && OGcoordX > 0 && OGcoordX < this.image.getImageWidth()
+						&& yCoord > 0
+						&& yCoord < this.image.getImageHeight()) {
+
+					ind = (int) OGcoordX + (int) yCoord * this.image.getImageWidth();
+					int boxPix = 0xff000000 | ((image.red[ind] & 0xff) << 16) | ((image.green[ind] & 0xff) << 8)
+							| (image.blue[ind] & 0xff);
+					this.imgOne.setRGB(boxRow, boxCol, boxPix);
+				}
+
+				yCoord++;
+			}
+			OGcoordX++;
+		}
+	}
+
 	public void showIms(String[] args) {
 
-		this.window = new WindowParams(1920, 1080);
+		this.image = new ImageParams(args[0]);
 
+		this.window = new WindowParams(this.image.getImageWidth(), this.image.getImageHeight());
 		this.window.setScalingFactor(Float.parseFloat(args[1]));
 		this.window.setAntiAliasingEnabled(Integer.parseInt(args[2]) == 1);
 		this.window.setOverlayDim(Integer.parseInt(args[3]));
 
-		this.image = new ImageParams(args[0]);
-
 		// Read in the specified image
-		this.imgOne = new BufferedImage(this.window.getWindowWidth(), this.window.getWindowHeight(),
+		this.imgOne = new BufferedImage((int) (this.window.getWindowWidth() * this.window.getScalingFactor()),
+				(int) (this.window.getWindowHeight() * this.window.getScalingFactor()),
 				BufferedImage.TYPE_INT_RGB);
-				
+
 		readScaledImageRGB();
 
 		// Use label to display the image
@@ -420,7 +378,6 @@ public class ImageDisplay {
 				// TODO Auto-generated method stub
 				if (!ctrlKeyPressed && e.getKeyCode() == 17) {
 					ctrlKeyPressed = true;
-					display();
 				}
 			}
 
@@ -429,7 +386,8 @@ public class ImageDisplay {
 				// TODO Auto-generated method stub
 				if (ctrlKeyPressed && e.getKeyCode() == 17) {
 					ctrlKeyPressed = false;
-					display();
+					renderDefault();
+					frame.repaint();
 				}
 			}
 
@@ -448,11 +406,18 @@ public class ImageDisplay {
 
 			@Override
 			public void mouseMoved(MouseEvent e) {
-				// TODO Auto-generated method stub
-				System.out.println("mouse X,Y - (" + e.getX() + "," + e.getY() + ")");
+				if (ctrlKeyPressed) {
+					renderDefault();
+					displayOverLay(e.getX(), e.getY());
+				} else {
+					renderDefault();
+				}
+				frame.repaint();
 			}
 
 		});
+
+		frame.setResizable(false);
 
 		GridBagConstraints c = new GridBagConstraints();
 		c.fill = GridBagConstraints.HORIZONTAL;
@@ -468,10 +433,6 @@ public class ImageDisplay {
 
 		frame.pack();
 		frame.setVisible(true);
-	}
-
-	void display(){
-		System.out.println(this.ctrlKeyPressed);
 	}
 
 	public static void main(String[] args) {
