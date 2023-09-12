@@ -189,7 +189,8 @@ public class ImageDisplay {
 
 			// Apply Anti-Aliasing
 			if (this.window.antiAliasingEnabled) {
-				applyAntiAliasing();
+				// applyAntiAliasing();
+				applyPartialAntiAliasing(0, this.newWidth, 0, this.newHeight);
 			}
 
 		} catch (Exception e) {
@@ -201,9 +202,45 @@ public class ImageDisplay {
 		int renderStartX = 0;
 		int renderStartY = 0;
 		int ind;
-		for (float y = 0; y < this.window.getWindowHeight(); y += this.window.getSamplingFactor()) {
+		for (float y = 0; y < this.image.getImageHeight(); y += this.window.getSamplingFactor()) {
 			int xcoord = renderStartX;
-			for (float x = 0; x < this.window.getWindowWidth(); x += this.window.getSamplingFactor(), xcoord++) {
+			for (float x = 0; x < this.image.getImageWidth(); x += this.window.getSamplingFactor(), xcoord++) {
+
+				ind = (int) x + (int) y * this.image.getImageWidth();
+
+				byte r = this.image.red[ind];
+				byte g = this.image.green[ind];
+				byte b = this.image.blue[ind];
+
+				int pix = 0xff000000 | ((r & 0xff) << 16) | ((g & 0xff) << 8) | (b & 0xff);
+
+				// TODO remove try catch
+				try {
+					this.imgOne.setRGB(xcoord, renderStartY, pix);
+
+				} catch (Exception e) {
+					break;
+				}
+			}
+			renderStartY++;
+		}
+	}
+
+	private void renderPartial(int renderStartX, int renderEndX, int renderStartY, int renderEndY) {
+		// renderStartX = 0;
+		// renderStartY = 0;
+
+		renderStartX = renderStartX > 8 ? renderStartX : 0;
+		renderStartY = renderStartY > 32 ? renderStartY : 0;
+		renderEndX = renderEndX < this.newWidth ? renderEndX : this.newWidth;
+		renderEndY = renderEndY < this.newHeight ? renderEndY : this.newHeight;
+
+		int ind;
+		for (float y = renderStartY * this.window.getSamplingFactor(); y < renderEndY
+				* this.window.getSamplingFactor(); y += this.window.getSamplingFactor()) {
+			int xcoord = renderStartX;
+			for (float x = renderStartX * this.window.getSamplingFactor(); x < renderEndX
+					* this.window.getSamplingFactor(); x += this.window.getSamplingFactor(), xcoord++) {
 
 				ind = (int) x + (int) y * this.window.getWindowWidth();
 
@@ -243,6 +280,55 @@ public class ImageDisplay {
 
 						if (aaRow >= 0 && aaRow < this.newWidth && aaCol >= 0
 								&& aaCol < this.newHeight) {
+
+							pixVal = this.imgOne.getRGB(aaRow, aaCol);
+
+							aaPixRed += (pixVal >> 16) & 0xff;
+							aaPixGreen += (pixVal >> 8) & 0xff;
+							aaPixBlue += pixVal & 0xff;
+
+							count++;
+						}
+
+					}
+				}
+
+				int aaPix = 0xff000000 | ((aaPixRed / count & 0xff) << 16) | ((aaPixGreen / count & 0xff) << 8)
+						| (aaPixBlue / count & 0xff);
+
+				try {
+					this.imgOne.setRGB(row, col, aaPix);
+
+				} catch (Exception e) {
+					break;
+				}
+			}
+		}
+	}
+
+	public void applyPartialAntiAliasing(int xStart, int xEnd, int yStart, int yEnd) {
+		int AAGridSize = 1; // creates a W x W filter where W = 2*AAGridSize + 1
+		int pixVal;
+		int aaPixRed, aaPixGreen, aaPixBlue;
+		int count;
+
+		xStart = xStart > 8 ? xStart : 0;
+		yStart = yStart > 32 ? yStart : 0;
+		xEnd = xEnd < this.newWidth ? xEnd : this.newWidth;
+		yEnd = yEnd < this.newHeight ? yEnd : this.newHeight;
+
+		for (int row = xStart; row < xEnd; row++) {
+			for (int col = yStart; col < yEnd; col++) {
+				aaPixRed = 0;
+				aaPixGreen = 0;
+				aaPixBlue = 0;
+				count = 0;
+
+				for (int aaRow = row - AAGridSize; aaRow <= row + AAGridSize; aaRow++) {
+					for (int aaCol = col - AAGridSize; aaCol <= col + AAGridSize; aaCol++) {
+
+						if (aaRow >= xStart && aaRow < xEnd && aaCol >= 0
+								&& aaCol < yEnd) {
 
 							pixVal = this.imgOne.getRGB(aaRow, aaCol);
 
@@ -341,7 +427,12 @@ public class ImageDisplay {
 				// TODO Auto-generated method stub
 				if (ctrlKeyPressed && e.getKeyCode() == 17) {
 					ctrlKeyPressed = false;
-					renderDefault();
+					// renderDefault();
+					renderPartial(0, newWidth, 0, newHeight);
+
+					if (window.antiAliasingEnabled) {
+						applyPartialAntiAliasing(0, newWidth, 0, newHeight);
+					}
 					frame.repaint();
 				}
 			}
@@ -353,6 +444,9 @@ public class ImageDisplay {
 		});
 		frame.addMouseMotionListener(new MouseMotionListener() {
 
+			int prevX;
+			int prevY;
+
 			@Override
 			public void mouseDragged(MouseEvent e) {
 				// TODO Auto-generated method stub
@@ -361,13 +455,22 @@ public class ImageDisplay {
 
 			@Override
 			public void mouseMoved(MouseEvent e) {
-				if (ctrlKeyPressed) {
-					renderDefault();
-					displayOverLay(e.getX(), e.getY());
-				} else {
-					renderDefault();
+
+				renderPartial(prevX - window.getOverlayDim() - 50, prevX + window.getOverlayDim() + 50,
+						prevY - window.getOverlayDim() - 50, prevY + window.getOverlayDim() + 50);
+
+				if (window.antiAliasingEnabled) {
+					applyPartialAntiAliasing(prevX - window.getOverlayDim() - 50, prevX + window.getOverlayDim() + 50,
+							prevY - window.getOverlayDim() - 50, prevY + window.getOverlayDim() + 50);
 				}
+
+				if (ctrlKeyPressed) {
+					displayOverLay(e.getX(), e.getY());
+				}
+
 				frame.repaint();
+				prevX = e.getX();
+				prevY = e.getY();
 			}
 
 		});
