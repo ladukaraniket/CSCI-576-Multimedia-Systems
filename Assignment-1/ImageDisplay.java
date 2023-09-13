@@ -234,6 +234,12 @@ public class ImageDisplay {
 		}
 	}
 
+	/**
+	 * <pre>
+	 *Applies Anti-aliasing to partial area of the canvas bound by the coordinates specified as inputs.
+	 *This is useful while applying AA to area repainted by renderPartial() instead of reapplying AA to the entire canvas.
+	 * </pre>
+	 */
 	public void applyPartialAntiAliasing(int xStart, int xEnd, int yStart, int yEnd) {
 		int AAGridSize = 2; // creates a W x W filter where W = 2*AAGridSize + 1
 		long aaPixRed, aaPixGreen, aaPixBlue;
@@ -246,10 +252,12 @@ public class ImageDisplay {
 
 		int ind;
 		for (float y = yStart * this.window.getSamplingFactor(); y < yEnd
-				* this.window.getSamplingFactor(); y += this.window.getSamplingFactor()) {
+				* this.window.getSamplingFactor()
+				&& yStart < this.window.getWindowHeight(); y += this.window.getSamplingFactor()) {
 			int xcoord = xStart;
 			for (float x = xStart * this.window.getSamplingFactor(); x < xEnd
-					* this.window.getSamplingFactor(); x += this.window.getSamplingFactor(), xcoord++) {
+					* this.window.getSamplingFactor()
+					&& xcoord < this.window.getWindowWidth(); x += this.window.getSamplingFactor(), xcoord++) {
 
 				aaPixRed = 0;
 				aaPixGreen = 0;
@@ -274,32 +282,22 @@ public class ImageDisplay {
 					}
 				}
 
-				aaPixRed/=count;
-				aaPixGreen/=count;
-				aaPixBlue/=count;
-				int aaPix = 0xff000000 | (((int)aaPixRed & 0xff) << 16) | (((int)aaPixGreen  & 0xff) << 8)
-						| ((int)aaPixBlue & 0xff);
-
+				aaPixRed /= count;
+				aaPixGreen /= count;
+				aaPixBlue /= count;
+				int aaPix = 0xff000000 | (((int) aaPixRed & 0xff) << 16) | (((int) aaPixGreen & 0xff) << 8)
+						| ((int) aaPixBlue & 0xff);
 
 				// TODO remove try catch
-				try {
-					this.imgOne.setRGB(xcoord, yStart, aaPix);
+				this.imgOne.setRGB(xcoord, yStart, aaPix);
 
-				} catch (Exception e) {
-					break;
-				}
 			}
 			yStart++;
 		}
 
 	}
 
-	/**
-	 * <pre>
-	 *Applies Anti-aliasing to partial area of the canvas bound by the coordinates specified as inputs.
-	 *This is useful while applying AA to area repainted by renderPartial() instead of reapplying AA to the entire canvas.
-	 * </pre>
-	 */
+	
 	public void applyPartialAntiAliasingOld(int xStart, int xEnd, int yStart, int yEnd) {
 		int AAGridSize = 1; // creates a W x W filter where W = 2*AAGridSize + 1
 		int pixVal;
@@ -339,12 +337,8 @@ public class ImageDisplay {
 				int aaPix = 0xff000000 | ((aaPixRed / count & 0xff) << 16) | ((aaPixGreen / count & 0xff) << 8)
 						| (aaPixBlue / count & 0xff);
 
-				try {
-					this.imgOne.setRGB(row, col, aaPix);
+				this.imgOne.setRGB(row, col, aaPix);
 
-				} catch (Exception e) {
-					break;
-				}
 			}
 		}
 	}
