@@ -285,6 +285,7 @@ public class ImageDisplay {
 				aaPixRed /= count;
 				aaPixGreen /= count;
 				aaPixBlue /= count;
+				
 				int aaPix = 0xff000000 | (((int) aaPixRed & 0xff) << 16) | (((int) aaPixGreen & 0xff) << 8)
 						| ((int) aaPixBlue & 0xff);
 
