@@ -5,7 +5,9 @@ import java.io.File;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Map.Entry;
 
 import javax.swing.ImageIcon;
@@ -38,6 +40,10 @@ class Node {
         this.val = val;
         this.x = x;
         this.y = y;
+    }
+
+    public String toString() {
+        return "(" + this.x + "," + this.y + ") : " + this.val;
     }
 }
 
@@ -72,6 +78,7 @@ class Histogram {
             default:
         }
         this.binCap = (this.max - this.min) / CONSTANTS.TOTAL_BINS.val;
+        this.processData();
     }
 
     public void processData() {
@@ -99,17 +106,27 @@ class Image {
     ArrayList<Node> red;
     ArrayList<Node> green;
     ArrayList<Node> blue;
-    ArrayList<Histogram> hists;
+    HashMap<String, ArrayList<Integer>> coordToRGB;
+    HashMap<String, Histogram> hists;
     HashMap<Integer, ArrayList<ArrayList<Node>>> colourSpace; // hsv : {val,x,y}[][3]
 
     final int frameLength = CONSTANTS.HEIGHT.val * CONSTANTS.WIDTH.val * 3;
+
+    public String toString() {
+        String string = this.name + " " + this.type + " " + hists.size() + " "
+                + colourSpace.get(CONSTANTS.COLOR_HSV.val).size();
+        return string;
+    }
 
     public Image(String pathName, int type) {
         File image = new File(pathName);
 
         this.name = image.getName();
         this.type = type;
+        this.coordToRGB = new HashMap<>();
 
+        // Parse RGB file and extra pixels
+        // Ignore green background on Object Images
         try {
             RandomAccessFile raf = new RandomAccessFile(pathName, "r");
             raf.seek(0);
@@ -141,6 +158,8 @@ class Image {
                         continue;
                     }
 
+                    this.coordToRGB.put("(" + x + "," + y + ")",
+                            new ArrayList<Integer>(Arrays.asList((int) r.val, (int) g.val, (int) b.val)));
                     this.red.add(r);
                     this.green.add(g);
                     this.blue.add(b);
@@ -151,10 +170,10 @@ class Image {
             // this.green = greenFinal.stream().mapToInt(i -> i).toArray();
             // this.blue = blueFinal.stream().mapToInt(i -> i).toArray();
 
-            System.out.println("-------------------------");
-            System.out.println(this.name);
-            System.out.println(this.red.size());
-            System.out.println("-------------------------");
+            // System.out.println("-------------------------");
+            // System.out.println(this.name);
+            // System.out.println(this.red.size());
+            // System.out.println("-------------------------");
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -163,10 +182,10 @@ class Image {
         this.colourSpace = new HashMap<>();
         this.colourSpace.put(CONSTANTS.COLOR_HSV.val, new ArrayList<>());
         this.colourSpace.put(CONSTANTS.COLOR_YUV.val, new ArrayList<>());
+        this.hists = new HashMap<>();
 
-        generateColorSpaceData();
-
-        generateHist(CONSTANTS.COLOR_HSV.toString(), 'H', colourSpace.get(CONSTANTS.COLOR_HSV.val).get(0));
+        this.generateColorSpaceData();
+        this.generateHist();
 
     }
 
@@ -238,16 +257,22 @@ class Image {
         this.colourSpace.get(CONSTANTS.COLOR_HSV.val).add(V);
     }
 
-    public void generateHist(String colorSpace, char colorDim, ArrayList<Node> vals) {
+    public void generateHist() {
 
-        Histogram hist = new Histogram(colorSpace + colorDim, colorDim, vals);
-        hist.processData();
+        // System.out.println("SIZE - " + hist.map.entrySet().size());
+        // for (Entry<Integer, ArrayList<Node>> entry : hist.map.entrySet()) {
+        // System.out.println(entry.getKey());
+        // System.out.println(entry.getValue().size());
+        // }
 
-        System.out.println("SIZE - "+hist.map.entrySet().size());
-        for (Entry<Integer, ArrayList<Node>> entry : hist.map.entrySet()) {
-            System.out.println(entry.getKey());
-            System.out.println(entry.getValue().size());
-        }
+        ArrayList<Node> H = colourSpace.get(CONSTANTS.COLOR_HSV.val).get(0);
+        ArrayList<Node> S = colourSpace.get(CONSTANTS.COLOR_HSV.val).get(1);
+        ArrayList<Node> V = colourSpace.get(CONSTANTS.COLOR_HSV.val).get(2);
+
+        hists.put(CONSTANTS.COLOR_HSV.toString() + "_H", new Histogram(CONSTANTS.COLOR_HSV.toString() + "_H", 'H', H));
+        hists.put(CONSTANTS.COLOR_HSV.toString() + "_S", new Histogram(CONSTANTS.COLOR_HSV.toString() + "_S", 'S', S));
+        hists.put(CONSTANTS.COLOR_HSV.toString() + "_V", new Histogram(CONSTANTS.COLOR_HSV.toString() + "_V", 'V', V));
+
     }
 }
 
@@ -255,55 +280,31 @@ public class DetectObject {
 
     String imgPath;
     String[] objectPath;
+    Image img;
+    ArrayList<Image> obj_list;
 
     DetectObject(String[] args) {
         this.imgPath = args[0];
         this.objectPath = Arrays.copyOfRange(args, 1, args.length);
+        obj_list = new ArrayList<>();
     }
 
-    public void renderImage(String renderImagePath) {
-        int frameLength = CONSTANTS.HEIGHT.val * CONSTANTS.WIDTH.val * 3;
-        byte[] red;
-        byte[] green;
-        byte[] blue;
-
-        File file = new File(renderImagePath);
-
+    public void renderImage(Image image) {
         try {
-            RandomAccessFile raf = new RandomAccessFile(file, "r");
-            raf.seek(0);
-
-            byte[] bytes = new byte[frameLength];
-            raf.read(bytes);
-            raf.close();
-
-            red = Arrays.copyOfRange(bytes, 0, frameLength / 3);
-            green = Arrays.copyOfRange(bytes, frameLength / 3, frameLength / 3 * 2);
-            blue = Arrays.copyOfRange(bytes, frameLength / 3 * 2, frameLength);
-
             JFrame frame;
             JLabel lbIm1;
             BufferedImage imgOne = new BufferedImage(CONSTANTS.WIDTH.val, CONSTANTS.HEIGHT.val,
                     BufferedImage.TYPE_INT_RGB);
 
             // Set image value
-            int ind;
-            for (int x = 0; x < CONSTANTS.WIDTH.val; x++) {
-                for (int y = 0; y < CONSTANTS.HEIGHT.val; y++) {
-                    ind = x + y * CONSTANTS.WIDTH.val;
+            for (int i = 0; i < image.red.size(); i++) {
 
-                    int r = red[ind] & 0xff;
-                    int g = green[ind] & 0xff;
-                    int b = blue[ind] & 0xff;
+                int x = image.red.get(i).x;
+                int y = image.red.get(i).y;
 
-                    if (g == 255 && b == 0 && r == 0) {
-                        continue;
-                    }
-
-                    int pix = 0xff000000 | ((r & 0xff) << 16) | ((g & 0xff) << 8) | (b & 0xff);
-
-                    imgOne.setRGB(x, y, pix);
-                }
+                int pix = 0xff000000 | (((int) image.red.get(i).val & 0xff) << 16)
+                        | (((int) image.green.get(i).val & 0xff) << 8) | ((int) image.blue.get(i).val & 0xff);
+                imgOne.setRGB(x, y, pix);
             }
 
             // Use label to display the image
@@ -333,14 +334,137 @@ public class DetectObject {
         }
     }
 
+    public void renderImageFromNodes(Image image, ArrayList<Node> nodes) {
+        try {
+            JFrame frame;
+            JLabel lbIm1;
+            BufferedImage imgOne = new BufferedImage(CONSTANTS.WIDTH.val, CONSTANTS.HEIGHT.val,
+                    BufferedImage.TYPE_INT_RGB);
+
+            // Set image value
+            for (int i = 0; i < nodes.size(); i++) {
+
+                int x = nodes.get(i).x;
+                int y = nodes.get(i).y;
+
+                ArrayList<Integer> colors = image.coordToRGB.get("(" + x + "," + y + ")");
+
+                int red = colors.get(0);
+                int green = colors.get(1);
+                int blue = colors.get(2);
+
+                int pix = 0xff000000 | ((red & 0xff) << 16)
+                        | ((green & 0xff) << 8) | (blue & 0xff);
+                imgOne.setRGB(x, y, pix);
+            }
+
+            // Use label to display the image
+            frame = new JFrame();
+            GridBagLayout gLayout = new GridBagLayout();
+            frame.getContentPane().setLayout(gLayout);
+            lbIm1 = new JLabel(new ImageIcon(imgOne));
+
+            GridBagConstraints c = new GridBagConstraints();
+            c.fill = GridBagConstraints.HORIZONTAL;
+            c.anchor = GridBagConstraints.CENTER;
+            c.weightx = 0.5;
+            c.gridx = 0;
+            c.gridy = 0;
+
+            c.fill = GridBagConstraints.HORIZONTAL;
+            c.gridx = 0;
+            c.gridy = 1;
+            frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+            frame.getContentPane().add(lbIm1, c);
+            frame.setResizable(false);
+            frame.pack();
+            frame.setVisible(true);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public ArrayList<Integer> findTopFreqBins(int k, char colorDim) {
+
+        Image cmp = obj_list.get(0);
+        for (int i = 0; i < obj_list.size(); i++) {
+            if (obj_list.get(i).name.toLowerCase().contains(img.name.toLowerCase().split("_")[0])) {
+                cmp = obj_list.get(i);
+                break;
+            }
+        }
+
+        Histogram obj = cmp.hists.get(CONSTANTS.COLOR_HSV.toString() + "_" + colorDim);
+
+        HashMap<Integer, Integer> freqToBin = new HashMap<>();
+
+        for (Entry<Integer, ArrayList<Node>> e : obj.map.entrySet()) {
+            if (freqToBin.size() < k) {
+                freqToBin.put(e.getValue().size(), e.getKey());
+            } else {
+                int min = Collections.min(freqToBin.entrySet(), Map.Entry.comparingByKey()).getKey();
+
+                if (e.getValue().size() > min) {
+                    freqToBin.remove(min);
+                    freqToBin.put(e.getValue().size(), e.getKey());
+                }
+
+            }
+        }
+
+        return new ArrayList<>(freqToBin.values());
+    }
+
     public void detectAndDisplay() {
 
-        new Image(this.imgPath, CONSTANTS.IMAGE.val);
+        // Generate Images
+        this.img = new Image(this.imgPath, CONSTANTS.IMAGE.val);
 
         for (String image : this.objectPath)
-            new Image(image, CONSTANTS.OBJECT.val);
-        // renderImage(image);
+            this.obj_list.add(new Image(image, CONSTANTS.OBJECT.val));
 
+        // System.out.println(this.img);
+
+        // for (Image i : obj_list)
+        // System.out.println(i);
+
+        int topBinCount = 2;
+
+        ArrayList<Node> img_pix = new ArrayList<>();
+        ArrayList<Integer> topSBins = findTopFreqBins(topBinCount+10, 'S');
+        ArrayList<Integer> topVBins = findTopFreqBins(topBinCount+10, 'V');
+
+        for (Integer bin : findTopFreqBins(topBinCount, 'H')) {
+
+            System.out.println(bin);
+            ArrayList<Node> matchingNodes = this.img.hists.get(CONSTANTS.COLOR_HSV.toString() + "_H").map.get(bin);
+
+            if (matchingNodes != null) {
+
+                for (Node node : matchingNodes) {
+                    ArrayList<Integer> rgb = this.img.coordToRGB.get("(" + node.x + "," + node.y + ")");
+                    double[] hsv = Image.RGB2HSV(rgb.get(0), rgb.get(1), rgb.get(2));
+
+                    int vBin = (int) Math
+                            .floor(hsv[2] / this.img.hists.get(CONSTANTS.COLOR_HSV.toString() + "_V").binCap);
+
+                    int sBin = (int) Math
+                            .floor(hsv[1] / this.img.hists.get(CONSTANTS.COLOR_HSV.toString() + "_S").binCap);
+
+
+
+                    if (topVBins.contains(vBin) && topSBins.contains(sBin) ) {
+
+                        img_pix.add(node);
+                    }
+                }
+                // img_pix.addAll(matchingNodes);
+            }
+
+        }
+        System.out.println(img_pix.size());
+        renderImageFromNodes(img, img_pix);
     }
 
     public static void main(String[] args) {
