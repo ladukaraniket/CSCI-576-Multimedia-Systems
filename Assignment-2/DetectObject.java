@@ -47,6 +47,25 @@ class Node {
     }
 }
 
+class Cluster {
+    int minX;
+    int maxX;
+    int minY;
+    int maxY;
+    float scale;
+    ArrayList<Node> cNodes;
+
+    public Cluster() {
+        this.minX = Integer.MAX_VALUE;
+        this.maxX = Integer.MIN_VALUE;
+        this.minY = Integer.MAX_VALUE;
+        this.maxY = Integer.MIN_VALUE;
+        this.scale = 0.0f;
+        this.cNodes = new ArrayList<>();
+    }
+
+}
+
 class Histogram {
     String name;
     char colourDim;
@@ -109,6 +128,11 @@ class Image {
     HashMap<String, ArrayList<Integer>> coordToRGB;
     HashMap<String, Histogram> hists;
     HashMap<Integer, ArrayList<ArrayList<Node>>> colourSpace; // hsv : {val,x,y}[][3]
+    int maxX;
+    int minX;
+    int maxY;
+    int minY;
+    float scale;
 
     final int frameLength = CONSTANTS.HEIGHT.val * CONSTANTS.WIDTH.val * 3;
 
@@ -124,6 +148,11 @@ class Image {
         this.name = image.getName();
         this.type = type;
         this.coordToRGB = new HashMap<>();
+        this.maxX = Integer.MIN_VALUE;
+        this.minX = Integer.MAX_VALUE;
+        this.maxY = Integer.MIN_VALUE;
+        this.minY = Integer.MAX_VALUE;
+        this.scale = 0.0f;
 
         // Parse RGB file and extra pixels
         // Ignore green background on Object Images
@@ -158,6 +187,13 @@ class Image {
                         continue;
                     }
 
+                    if (type == CONSTANTS.OBJECT.val) {
+                        this.minX = this.minX > x ? x : this.minX;
+                        this.minY = this.minY > y ? y : this.minY;
+                        this.maxX = this.maxX < x ? x : this.maxX;
+                        this.maxY = this.maxY < y ? y : this.maxY;
+                    }
+
                     this.coordToRGB.put("(" + x + "," + y + ")",
                             new ArrayList<Integer>(Arrays.asList((int) r.val, (int) g.val, (int) b.val)));
                     this.red.add(r);
@@ -166,14 +202,11 @@ class Image {
                 }
             }
 
+            this.scale = (float) (this.maxX - this.minX) / (float) (this.maxY - this.minY);
+            System.out.println("calc scale " + this.scale);
             // this.red = redFinal.stream().mapToInt(i -> i).toArray();
             // this.green = greenFinal.stream().mapToInt(i -> i).toArray();
             // this.blue = blueFinal.stream().mapToInt(i -> i).toArray();
-
-            // System.out.println("-------------------------");
-            // System.out.println(this.name);
-            // System.out.println(this.red.size());
-            // System.out.println("-------------------------");
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -258,13 +291,6 @@ class Image {
     }
 
     public void generateHist() {
-
-        // System.out.println("SIZE - " + hist.map.entrySet().size());
-        // for (Entry<Integer, ArrayList<Node>> entry : hist.map.entrySet()) {
-        // System.out.println(entry.getKey());
-        // System.out.println(entry.getValue().size());
-        // }
-
         ArrayList<Node> H = colourSpace.get(CONSTANTS.COLOR_HSV.val).get(0);
         ArrayList<Node> S = colourSpace.get(CONSTANTS.COLOR_HSV.val).get(1);
         ArrayList<Node> V = colourSpace.get(CONSTANTS.COLOR_HSV.val).get(2);
@@ -390,10 +416,20 @@ public class DetectObject {
         Image cmp = obj_list.get(0);
         for (int i = 0; i < obj_list.size(); i++) {
             if (obj_list.get(i).name.toLowerCase().contains(img.name.toLowerCase().split("_")[0])) {
+                // if (obj_list.get(i).name.toLowerCase().contains("pikachu")) {
                 cmp = obj_list.get(i);
                 break;
             }
         }
+
+        // Temp Logging dims
+        System.out.println(cmp.name);
+
+        System.out.println("cmp.maxX " + cmp.maxX);
+        System.out.println("cmp.minX " + cmp.minX);
+        System.out.println("cmp.maxY " + cmp.maxY);
+        System.out.println("cmp.minY " + cmp.minY);
+        System.out.println("Scale : " + (float) (cmp.maxX - cmp.minX) / (float) (cmp.maxY - cmp.minY));
 
         Histogram obj = cmp.hists.get(CONSTANTS.COLOR_HSV.toString() + "_" + colorDim);
 
@@ -419,6 +455,14 @@ public class DetectObject {
     public void detectAndDisplay() {
 
         // Generate Images
+
+        // String path =
+        // ".\\DataSet\\multi_object_test_new\\multi_object_test_new\\update_rgb\\Multiple_Volleyballs_v2.rgb";
+        // String path =
+        // ".\\DataSet\\multi_object_test_new\\multi_object_test_new\\update_rgb\\Pikachu_and_Oswald_v2.rgb";
+
+        // String path =".\\DataSet\\dataset\\dataset\\data_sample_rgb\\Volleyball_object.rgb";
+        // this.img = new Image(path, CONSTANTS.IMAGE.val);
         this.img = new Image(this.imgPath, CONSTANTS.IMAGE.val);
 
         for (String image : this.objectPath)
@@ -429,11 +473,11 @@ public class DetectObject {
         // for (Image i : obj_list)
         // System.out.println(i);
 
-        int topBinCount = 2;
+        int topBinCount = 4;
 
         ArrayList<Node> img_pix = new ArrayList<>();
-        ArrayList<Integer> topSBins = findTopFreqBins(topBinCount+10, 'S');
-        ArrayList<Integer> topVBins = findTopFreqBins(topBinCount+10, 'V');
+        ArrayList<Integer> topSBins = findTopFreqBins(topBinCount + 10, 'S');
+        ArrayList<Integer> topVBins = findTopFreqBins(topBinCount + 15, 'V');
 
         for (Integer bin : findTopFreqBins(topBinCount, 'H')) {
 
@@ -452,23 +496,176 @@ public class DetectObject {
                     int sBin = (int) Math
                             .floor(hsv[1] / this.img.hists.get(CONSTANTS.COLOR_HSV.toString() + "_S").binCap);
 
-
-
-                    if (topVBins.contains(vBin) && topSBins.contains(sBin) ) {
+                    // if (!(topVBins.contains(vBin) ^ topSBins.contains(sBin)) ) {
+                    if ((topVBins.contains(vBin) && topSBins.contains(sBin))) {
 
                         img_pix.add(node);
                     }
                 }
-                // img_pix.addAll(matchingNodes);
+
             }
 
         }
         System.out.println(img_pix.size());
-        renderImageFromNodes(img, img_pix);
+        // renderImageFromNodes(img, img_pix);
+        // renderImageFromNodes(img, DBScan(img_pix));
+
+        for (Cluster c : DBScan(img_pix)) {
+
+            renderImageFromNodes(img, c.cNodes);
+        }
+    }
+
+    public ArrayList<Cluster> DBScan(ArrayList<Node> nodes) {
+        int eps = 10;
+        int minNodes = 15;
+        // int eps = 7;
+        // int minNodes = 15;
+
+        ArrayList<Node> centreNodes = new ArrayList<>();
+
+        // Identify Centre Nodes
+        for (Node currNode : nodes) {
+            int count = 0;
+
+            for (Node node : nodes) {
+                int distance = (int) Math.sqrt(Math.pow(currNode.x - node.x, 2) + Math.pow(currNode.y - node.y, 2));
+
+                if (distance < eps) {
+                    count++;
+                }
+            }
+
+            if (count > minNodes) {
+                centreNodes.add(currNode);
+            }
+        }
+
+        System.out.println("Create Cluster");
+        ;
+        // Create Cluster
+        ArrayList<Cluster> clusterList = new ArrayList<>();
+        while (!centreNodes.isEmpty()) {
+            Node currNode = centreNodes.remove(0);
+            // System.out.println("centreNodes "+ centreNodes.size());
+
+            Cluster cluster = new Cluster();
+            ArrayList<Node> neighbor = new ArrayList<>();
+
+            int xmin = Integer.MAX_VALUE;
+            int xmax = Integer.MIN_VALUE;
+            int ymin = Integer.MAX_VALUE;
+            int ymax = Integer.MIN_VALUE;
+
+            cluster.cNodes.add(currNode);
+            neighbor.add(currNode);
+
+            while (!neighbor.isEmpty()) {
+                Node currNeighbor = neighbor.remove(0);
+                // System.out.println("neighbor "+ neighbor.size());
+                ArrayList<Node> toRemove = new ArrayList<>();
+
+                for (Node node : centreNodes) {
+                    int distance = (int) Math.sqrt(Math.pow(currNeighbor.x - node.x, 2) +
+                            Math.pow(currNeighbor.y - node.y, 2));
+
+                    if (distance < eps) {
+                        cluster.cNodes.add(node);
+                        neighbor.add(node);
+                        toRemove.add(node);
+
+                        xmin = xmin > node.x ? node.x : xmin;
+                        ymin = ymin > node.y ? node.y : ymin;
+                        xmax = xmax < node.x ? node.x : xmax;
+                        ymax = ymax < node.y ? node.y : ymax;
+                    }
+                }
+
+                centreNodes.removeAll(toRemove);
+
+            }
+
+            System.out.println("Scale " + clusterList.size() + " : " + (float) (xmax - xmin) / (float) (ymax - ymin));
+            cluster.minX = xmin;
+            cluster.minY = ymin;
+            cluster.maxX = xmax;
+            cluster.maxY = ymax;
+            cluster.scale = (float) (xmax - xmin) / (float) (ymax - ymin);
+
+            clusterList.add(cluster);
+        }
+
+        Image cmp = obj_list.get(0);
+        for (int i = 0; i < obj_list.size(); i++) {
+            if (obj_list.get(i).name.toLowerCase().contains(img.name.toLowerCase().split("_")[0])) {
+                // if (obj_list.get(i).name.toLowerCase().contains("oswald")) {
+                cmp = obj_list.get(i);
+                break;
+            }
+        }
+
+        int topBin = findTopFreqBins(1, 'H').get(0);
+
+        // float diff = Float.MAX_VALUE;
+        // int ind = 0;
+        // System.out.println(cmp.scale);
+        // for (int i = 0; i < clusterList.size(); i++) {
+        // float cd = Math.abs(cmp.scale - clusterList.get(i).scale);
+
+        // if (cd < diff) {
+        // ind = i;
+        // diff = cd;
+        // }
+        // }
+
+        int count = 0;
+        int ind = 0;
+        System.out.println(cmp.scale);
+        for (int i = 0; i < clusterList.size(); i++) {
+            ArrayList<Node> curr = clusterList.get(i).cNodes;
+            int sum = 0;
+            for (int j = 0; j < curr.size(); j++) {
+                int currBin = (int) curr.get(j).val / cmp.hists.get(CONSTANTS.COLOR_HSV.toString() + "_H").binCap;
+
+                if (topBin == currBin) {
+                    sum++;
+                }
+            }
+
+            if (count < sum) {
+                count = sum;
+                ind = i;
+            }
+        }
+
+        System.out.println("MAX " + count);
+        System.out.println("num clusters - " + clusterList.size());
+
+        ArrayList<Node> combined = new ArrayList<>();
+        for (Cluster cluster : clusterList) {
+            // if(cluster.scale > 0.8 && cluster.scale <0.9 ){
+            // System.out.println("selected : "+cluster.scale);
+            combined.addAll(cluster.cNodes);
+            // }
+        }
+        System.out.println(ind);
+        ArrayList<Cluster> c = new ArrayList<>();
+        c.add(clusterList.get(ind));
+        return c;
+
+        // return clusterList;
+
+        // return clusterList.get(1).cNodes;
+        // return combined;
+
     }
 
     public static void main(String[] args) {
+        long start = System.currentTimeMillis();
         DetectObject obj = new DetectObject(args);
         obj.detectAndDisplay();
+        long end = System.currentTimeMillis();
+        long elapsedTime = end - start;
+        System.out.println("Time taken to detect object - " + elapsedTime / 1000.0 + " s");
     }
 }
