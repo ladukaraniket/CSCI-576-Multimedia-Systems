@@ -225,6 +225,21 @@ class Image {
 
     }
 
+    public double[] convRGBtoYUV(double R, double G, double B) {
+
+        int y = (int) Math.round(R * .299000 + G * .587000 + B * .114000);
+        int u = (int) Math.round(R * -.168736 + G * -.331264 + B * .500000
+                + 128);
+        int v = (int) Math.round(R * .500000 + G * -.418688 + B * -.081312
+                + 128);
+
+        double yuv[] = new double[3];
+        yuv[0] = y;
+        yuv[1] = u;
+        yuv[2] = v;
+        return yuv;
+    }
+
     public static double[] RGB2HSV(double R, double G, double B) {
 
         R /= 255.0;
@@ -277,16 +292,26 @@ class Image {
         ArrayList<Node> S = new ArrayList<>();
         ArrayList<Node> V = new ArrayList<>();
 
+        double max = Double.MIN_VALUE;
+        double min = Double.MAX_VALUE;
+
         for (int i = 0; i < this.red.size(); i++) {
             int x = this.red.get(i).x;
             int y = this.red.get(i).y;
 
             double[] hsv = RGB2HSV(this.red.get(i).val, this.green.get(i).val, this.blue.get(i).val);
+            double[] yuv = convRGBtoYUV(this.red.get(i).val, this.green.get(i).val, this.blue.get(i).val);
+
+            if (max < yuv[2]) {
+                max = yuv[2];
+            }
 
             H.add(new Node(hsv[0], x, y));
             S.add(new Node(hsv[1], x, y));
             V.add(new Node(hsv[2], x, y));
         }
+
+        System.out.println("MAX V in YUV - " + max);
 
         this.colourSpace.get(CONSTANTS.COLOR_HSV.val).add(H);
         this.colourSpace.get(CONSTANTS.COLOR_HSV.val).add(S);
@@ -489,7 +514,10 @@ public class DetectObject {
             for (int x = cluster.minX; x < cluster.maxX; x++) {
                 for (int w = 0; w < boxWidth; w++) {
                     this.imgOne.setRGB(x, cluster.minY + w, Color.GREEN.getRGB());
+                }
+                for (int w = 0; w < boxWidth+7; w++) {
                     this.imgOne.setRGB(x, cluster.maxY - w, Color.GREEN.getRGB());
+                    
                 }
             }
 
@@ -545,14 +573,15 @@ public class DetectObject {
             this.obj_list.add(new Image(image, CONSTANTS.OBJECT.val));
 
         int topBinCount = 4;
-
+        // 41015
         // Display Image
         displayMainImage();
 
         for (Image obj_image : this.obj_list) {
+            // renderImage(obj_image);
             ArrayList<Node> img_pix = new ArrayList<>();
-            ArrayList<Integer> topSBins = findTopFreqBins(obj_image, topBinCount + 10, 'S');
-            ArrayList<Integer> topVBins = findTopFreqBins(obj_image, topBinCount + 15, 'V');
+            ArrayList<Integer> topSBins = findTopFreqBins(obj_image, topBinCount + 20, 'S');
+            ArrayList<Integer> topVBins = findTopFreqBins(obj_image, topBinCount + 9, 'V');
 
             // Filter image pixel having hues present in top k bins
             for (Integer bin : findTopFreqBins(obj_image, topBinCount, 'H')) {
@@ -589,10 +618,10 @@ public class DetectObject {
 
             for (Cluster c : DBScan(img, obj_image, img_pix)) {
 
-                
                 // renderImageFromNodes(img, c.cNodes);
                 renderBoundingBoxFromCluster(img, c, obj_image.name);
             }
+
         }
 
         long end = System.currentTimeMillis();
@@ -606,6 +635,8 @@ public class DetectObject {
         this.frame.setTitle("Searching Object: " + obj_image.name + ". Please Wait !!!");
         System.out.println("Searching Object: " + obj_image.name + ". Please Wait !!!");
 
+        // int eps = 10;
+        // int minNodes = 15;
         int eps = 10;
         int minNodes = 15;
 
@@ -646,7 +677,6 @@ public class DetectObject {
         ArrayList<Cluster> clusterList = new ArrayList<>();
         while (!centreNodes.isEmpty()) {
             Node currNode = centreNodes.remove(0);
-            // System.out.println("centreNodes "+ centreNodes.size());
 
             Cluster cluster = new Cluster();
             ArrayList<Node> neighbor = new ArrayList<>();
@@ -661,7 +691,6 @@ public class DetectObject {
 
             while (!neighbor.isEmpty()) {
                 Node currNeighbor = neighbor.remove(0);
-                // System.out.println("neighbor "+ neighbor.size());
                 ArrayList<Node> toRemove = new ArrayList<>();
 
                 for (Node node : centreNodes) {
@@ -741,17 +770,22 @@ public class DetectObject {
             System.out.println("clust.cNodes.size() " + clust.cNodes.size());
             if (clust.cNodes.size() > 0.9 * count && clust.cNodes.size() > 1000) {
 
-                if ( Math.abs(clust.scale - obj_image.scale) < 0.45) {
+                // if ( Math.abs(clust.scale - obj_image.scale) < 0.45) {
 
-                    System.out.println("added");
-                    c.add(clust);
-                }
+                System.out.println("added");
+                c.add(clust);
+                // }
             }
         }
         // if (!clusterList.isEmpty()) {
         // c.add(clusterList.get(ind));
         // }
         // return clusterList;
+        if (c.size() > 1){
+            c.removeIf((clust) -> (Math.abs(clust.scale - obj_image.scale) > 0.45));
+        }
+
+        System.out.println("total c size " + c.size());
         return c;
 
         // return clusterList;
