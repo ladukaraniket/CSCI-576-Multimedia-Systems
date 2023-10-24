@@ -1,3 +1,10 @@
+/*
+ * Author   : Aniket Ladukar
+ * Subject  : CSCI 576 : Multimedia Systems Design
+ */
+
+
+
 import java.awt.Color;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -515,9 +522,9 @@ public class DetectObject {
                 for (int w = 0; w < boxWidth; w++) {
                     this.imgOne.setRGB(x, cluster.minY + w, Color.GREEN.getRGB());
                 }
-                for (int w = 0; w < boxWidth+7; w++) {
+                for (int w = 0; w < boxWidth + 7; w++) {
                     this.imgOne.setRGB(x, cluster.maxY - w, Color.GREEN.getRGB());
-                    
+
                 }
             }
 
@@ -635,8 +642,6 @@ public class DetectObject {
         this.frame.setTitle("Searching Object: " + obj_image.name + ". Please Wait !!!");
         System.out.println("Searching Object: " + obj_image.name + ". Please Wait !!!");
 
-        // int eps = 10;
-        // int minNodes = 15;
         int eps = 10;
         int minNodes = 15;
 
@@ -755,12 +760,6 @@ public class DetectObject {
         System.out.println("MAX " + count);
         System.out.println("num clusters - " + clusterList.size());
 
-        // ArrayList<Node> combined = new ArrayList<>();
-        // for (Cluster cluster : clusterList) {
-
-        // combined.addAll(cluster.cNodes);
-
-        // }
         System.out.println(ind);
         ArrayList<Cluster> c = new ArrayList<>();
 
@@ -770,28 +769,18 @@ public class DetectObject {
             System.out.println("clust.cNodes.size() " + clust.cNodes.size());
             if (clust.cNodes.size() > 0.9 * count && clust.cNodes.size() > 1000) {
 
-                // if ( Math.abs(clust.scale - obj_image.scale) < 0.45) {
-
                 System.out.println("added");
                 c.add(clust);
-                // }
+
             }
         }
-        // if (!clusterList.isEmpty()) {
-        // c.add(clusterList.get(ind));
-        // }
-        // return clusterList;
-        if (c.size() > 1){
+
+        if (c.size() > 1) {
             c.removeIf((clust) -> (Math.abs(clust.scale - obj_image.scale) > 0.45));
         }
 
         System.out.println("total c size " + c.size());
         return c;
-
-        // return clusterList;
-
-        // return clusterList.get(1).cNodes;
-        // return combined;
 
     }
 
