@@ -181,7 +181,7 @@ public class CompressDWT {
                 }
             }
             this.img.imageChannels.red = Arrays.copyOf(this.img.channelsDWT.red, this.img.imageChannels.red.length);
-            this.renderImage(this.img.channelsDWT);
+
             // COLUMN wise DWT
             for (int x = 0; x < this.img.width / (int) Math.pow(2, lv - 1); x++) {
                 for (int y = 0, k = 0; y < this.img.width / (int) Math.pow(2, lv - 1); y = y + 2, k++) {
@@ -201,7 +201,7 @@ public class CompressDWT {
                 }
             }
             this.img.imageChannels.red = Arrays.copyOf(this.img.channelsDWT.red, this.img.imageChannels.red.length);
-            this.renderImage(this.img.channelsDWT);
+
         }
     }
 
@@ -217,8 +217,6 @@ public class CompressDWT {
             int hp = this.img.width / (int) Math.pow(2, lv);
 
             // COLUMN wise IDWT
-            System.out.println(
-                    "this.img.width / (int) Math.pow(2, lv - 1) " + this.img.width / (int) Math.pow(2, lv - 1));
             for (int x = 0; x < this.img.width / (int) Math.pow(2, lv - 1); x++) {
                 for (int y = 0, k = 0; y < this.img.width / (int) Math.pow(2, lv - 1); y = y + 2, k++) {
 
@@ -227,8 +225,10 @@ public class CompressDWT {
                     indLP = x + (lp + k) * this.img.width;
                     indHP = x + (hp + k) * this.img.width;
 
-                    this.img.channelsIDWT.red[ind1] = this.img.channelsDWT.red[indLP] + this.img.channelsDWT.red[indHP];
-                    this.img.channelsIDWT.red[ind2] = this.img.channelsDWT.red[indLP] - this.img.channelsDWT.red[indHP];
+                    this.img.channelsIDWT.red[ind1] = this.img.imageChannels.red[indLP]
+                            + this.img.imageChannels.red[indHP];
+                    this.img.channelsIDWT.red[ind2] = this.img.imageChannels.red[indLP]
+                            - this.img.imageChannels.red[indHP];
                 }
             }
             for (int x = 0; x < this.img.width / (int) Math.pow(2, lv - 1); x++) {
@@ -236,58 +236,89 @@ public class CompressDWT {
 
                     ind1 = x + (y) * this.img.width;
 
-                    this.img.channelsDWT.red[ind1] = this.img.channelsIDWT.red[ind1];
+                    this.img.imageChannels.red[ind1] = this.img.channelsIDWT.red[ind1];
                 }
             }
-            // this.img.channelsDWT.red = Arrays.copyOf(this.img.channelsIDWT.red,
-            // this.img.channelsDWT.red.length);
-            // this.renderImage(this.img.channelsIDWT);
-            this.renderImage(this.img.channelsDWT);
-            // if(lv == 2)
-            // break;
-            // ROW wise DWT
+
+            // ROW wise IDWT
             for (int y = 0; y < this.img.width / (int) Math.pow(2, lv - 1); y++) {
-            for (int x = 0, k = 0; x < this.img.width / (int) Math.pow(2, lv - 1); x = x
-            +
-            2, k++) {
+                for (int x = 0, k = 0; x < this.img.width / (int) Math.pow(2, lv - 1); x = x + 2, k++) {
 
-            ind1 = (x) + y * this.img.width;
-            ind2 = (x + 1) + y * this.img.width;
-            indLP = (lp + k) + y * this.img.width;
-            indHP = (hp + k) + y * this.img.width;
+                    ind1 = (x) + y * this.img.width;
+                    ind2 = (x + 1) + y * this.img.width;
+                    indLP = (lp + k) + y * this.img.width;
+                    indHP = (hp + k) + y * this.img.width;
 
-            this.img.channelsIDWT.red[ind1] = this.img.channelsDWT.red[indLP] +
-            this.img.channelsDWT.red[indHP];
-            this.img.channelsIDWT.red[ind2] = this.img.channelsDWT.red[indLP] -
-            this.img.channelsDWT.red[indHP];
+                    this.img.channelsIDWT.red[ind1] = this.img.imageChannels.red[indLP] +
+                            this.img.imageChannels.red[indHP];
+                    this.img.channelsIDWT.red[ind2] = this.img.imageChannels.red[indLP] -
+                            this.img.imageChannels.red[indHP];
+                }
             }
-            }
-
-            // this.img.channelsDWT.red = Arrays.copyOf(this.img.channelsIDWT.red,
-            // this.img.channelsDWT.red.length);
             for (int x = 0; x < this.img.width / (int) Math.pow(2, lv - 1); x++) {
-            for (int y = 0; y < this.img.width / (int) Math.pow(2, lv - 1); y++) {
+                for (int y = 0; y < this.img.width / (int) Math.pow(2, lv - 1); y++) {
 
-            ind1 = x + (y) * this.img.width;
+                    ind1 = x + (y) * this.img.width;
 
-            this.img.channelsDWT.red[ind1] = this.img.channelsIDWT.red[ind1];
-            }
+                    this.img.imageChannels.red[ind1] = this.img.channelsIDWT.red[ind1];
+                }
             }
 
             // this.renderImage(this.img.channelsIDWT);
-            this.renderImage(this.img.channelsDWT);
+            // this.renderImage(this.img.channelsDWT);
             // if (lv == 2)
-            //     break;
+            // break;
         }
 
     }
 
+    public void extractCoefficients(int lowpassLevel) {
+
+        int coeffDim = (int) Math.pow(2, lowpassLevel);
+        int ind;
+
+        for (int x = 0; x < this.img.width; x++) {
+            for (int y = 0; y < this.img.height; y++) {
+
+                ind = x + y * this.img.width;
+
+                if (x >= coeffDim || y >= coeffDim) {
+                    this.img.imageChannels.red[ind] = 0;
+                } else {
+                    this.img.imageChannels.red[ind] = this.img.channelsDWT.red[ind];
+                }
+            }
+        }
+    }
+
     public void compress() {
-        this.renderImage(this.img.imageChannels);
-        this.performDWT(this.lowpassLevel);
-        this.renderImage(this.img.channelsDWT);
-        this.inverseDWT(this.lowpassLevel);
-        // this.renderImage(this.img.channelsIDWT);
+
+        if (this.lowpassLevel == -1) {
+            // Progressive
+            this.performDWT(9);
+            for (int x = 0; x <= 9; x++) {
+
+                this.extractCoefficients(x);
+                this.inverseDWT(9);
+                this.renderImage(this.img.channelsIDWT);
+
+                try {
+                    Thread.sleep(300);
+                } catch (InterruptedException e) {
+                    System.err.println("Some error occurred - Cannot put thread to Sleep");
+                    System.exit(0);
+                }
+            }
+        } else {
+            this.renderImage(this.img.imageChannels);
+            this.performDWT(9);
+            this.renderImage(this.img.imageChannels);
+            this.extractCoefficients(lowpassLevel);
+            this.renderImage(this.img.imageChannels);
+            this.inverseDWT(9);
+            this.renderImage(this.img.channelsIDWT);
+        }
+
         // this.renderImage(this.img.channelsDWT);
     }
 
