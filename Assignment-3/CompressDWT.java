@@ -120,9 +120,12 @@ public class CompressDWT {
         StringBuilder title = new StringBuilder();
         String spacing = "      ";
 
-        title.append(this.img.imageFile.getName());
-        title.append(spacing);
+        title.append("n: ");
         title.append(this.lowpassLevel);
+        if (this.lowpassLevel == -1) {
+            title.append(spacing);
+            title.append("Progressive | Delay: " + SLEEP_TIME + "ms");
+        }
 
         if (!repaint) {
             // Use label to display the image
@@ -150,8 +153,6 @@ public class CompressDWT {
             frame.setVisible(true);
 
         } else {
-            title.append(spacing);
-            title.append("Progressive | Delay: " + SLEEP_TIME + "ms");
             this.frame.repaint();
         }
 
@@ -353,6 +354,7 @@ public class CompressDWT {
 
     public void compress() {
 
+        // this.renderImage(this.img.imageChannels, false);
         if (this.lowpassLevel == -1) {
             this.performDWT(9);
 
@@ -362,16 +364,16 @@ public class CompressDWT {
                 this.extractCoefficients(x);
                 this.inverseDWT(9);
                 this.renderImage(this.img.channelsIDWT, x > 0);
-
                 try {
                     Thread.sleep(SLEEP_TIME);
                 } catch (InterruptedException e) {
                     System.err.println("Some error occurred - Cannot put thread to Sleep");
                     System.exit(0);
                 }
+                this.frame.setTitle(this.frame.getTitle() + " | Processing "+x);
             }
+            this.frame.setTitle(this.frame.getTitle() + " | Complete");
         } else {
-            // this.renderImage(this.img.imageChannels, false);
             this.performDWT(9);
             this.extractCoefficients(lowpassLevel);
             this.inverseDWT(9);
