@@ -84,6 +84,7 @@ public class CompressDWT {
     BufferedImage frameImage;
     Image img;
     int lowpassLevel;
+    int SLEEP_TIME = 300;
 
     public CompressDWT(String imagePath, int lowpassLevel) {
         this.img = new Image(imagePath);
@@ -91,25 +92,24 @@ public class CompressDWT {
         this.frameImage = new BufferedImage(this.img.width, this.img.height, BufferedImage.TYPE_INT_RGB);
     }
 
-    public void renderImage(ImageChannels channels) {
-        frameImage = new BufferedImage(this.img.width, this.img.height, BufferedImage.TYPE_INT_RGB);
+    public void renderImage(ImageChannels channels, boolean repaint) {
+        if (!repaint) {
+            this.frameImage = new BufferedImage(this.img.width, this.img.height, BufferedImage.TYPE_INT_RGB);
+        }
         int ind;
         for (int x = 0; x < this.img.width; x++) {
             for (int y = 0; y < this.img.height; y++) {
                 ind = (int) x + (int) y * this.img.width;
 
-                // byte r = channels.red[ind];
-                // byte g = channels.green[ind];
-                // byte b = channels.blue[ind];
                 int r = (int) channels.red[ind];
                 int g = (int) channels.green[ind];
                 int b = (int) channels.blue[ind];
 
-                int pix = 0xff000000 | ((r << 16) | ((g & 0) << 8) | (b & 0));
-
+                int pix = 0xff000000 | ((r  << 16) | (g << 8) | (b));
+                
                 // TODO remove try catch
                 try {
-                    frameImage.setRGB(x, y, pix);
+                    this.frameImage.setRGB(x, y, pix);
 
                 } catch (Exception e) {
                     break;
@@ -117,37 +117,45 @@ public class CompressDWT {
             }
         }
 
-        // Use label to display the image
-        frame = new JFrame();
-        GridBagLayout gLayout = new GridBagLayout();
-        frame.getContentPane().setLayout(gLayout);
-        lbIm1 = new JLabel(new ImageIcon(this.frameImage));
-
-        frame.setResizable(false);
-
         StringBuilder title = new StringBuilder();
         String spacing = "      ";
 
         title.append(this.img.imageFile.getName());
         title.append(spacing);
         title.append(this.lowpassLevel);
-        frame.setTitle(title.toString());
 
-        GridBagConstraints c = new GridBagConstraints();
-        c.fill = GridBagConstraints.HORIZONTAL;
-        c.anchor = GridBagConstraints.CENTER;
-        c.weightx = 0.5;
-        c.gridx = 0;
-        c.gridy = 0;
+        if (!repaint) {
+            // Use label to display the image
+            this.frame = new JFrame();
+            GridBagLayout gLayout = new GridBagLayout();
+            this.frame.getContentPane().setLayout(gLayout);
+            lbIm1 = new JLabel(new ImageIcon(this.frameImage));
 
-        c.fill = GridBagConstraints.HORIZONTAL;
-        c.gridx = 0;
-        c.gridy = 1;
-        frame.getContentPane().add(lbIm1, c);
+            this.frame.setResizable(false);
 
-        frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-        frame.pack();
-        frame.setVisible(true);
+            GridBagConstraints c = new GridBagConstraints();
+            c.fill = GridBagConstraints.HORIZONTAL;
+            c.anchor = GridBagConstraints.CENTER;
+            c.weightx = 0.5;
+            c.gridx = 0;
+            c.gridy = 0;
+
+            c.fill = GridBagConstraints.HORIZONTAL;
+            c.gridx = 0;
+            c.gridy = 1;
+            frame.getContentPane().add(lbIm1, c);
+
+            frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+            frame.pack();
+            frame.setVisible(true);
+
+        } else {
+            title.append(spacing);
+            title.append("Progressive | Delay: " + SLEEP_TIME + "ms");
+            this.frame.repaint();
+        }
+
+        this.frame.setTitle(title.toString());
     }
 
     public void performDWT(int dwtLevel) {
@@ -172,15 +180,26 @@ public class CompressDWT {
                     // Low Pass
                     indK = (lp + k) + y * this.img.width;
                     lpRed = (this.img.imageChannels.red[ind1] + this.img.imageChannels.red[ind2]) / 2.0;
+                    lpGreen = (this.img.imageChannels.green[ind1] + this.img.imageChannels.green[ind2]) / 2.0;
+                    lpBlue = (this.img.imageChannels.blue[ind1] + this.img.imageChannels.blue[ind2]) / 2.0;
                     this.img.channelsDWT.red[indK] = lpRed;
+                    this.img.channelsDWT.green[indK] = lpGreen;
+                    this.img.channelsDWT.blue[indK] = lpBlue;
 
                     // High Pass
                     indK = (hp + k) + y * this.img.width;
                     hpRed = (this.img.imageChannels.red[ind1] - this.img.imageChannels.red[ind2]) / 2.0;
+                    hpGreen = (this.img.imageChannels.green[ind1] - this.img.imageChannels.green[ind2]) / 2.0;
+                    hpBlue = (this.img.imageChannels.blue[ind1] - this.img.imageChannels.blue[ind2]) / 2.0;
                     this.img.channelsDWT.red[indK] = hpRed;
+                    this.img.channelsDWT.green[indK] = hpGreen;
+                    this.img.channelsDWT.blue[indK] = hpBlue;
                 }
             }
             this.img.imageChannels.red = Arrays.copyOf(this.img.channelsDWT.red, this.img.imageChannels.red.length);
+            this.img.imageChannels.green = Arrays.copyOf(this.img.channelsDWT.green,
+                    this.img.imageChannels.green.length);
+            this.img.imageChannels.blue = Arrays.copyOf(this.img.channelsDWT.blue, this.img.imageChannels.blue.length);
 
             // COLUMN wise DWT
             for (int x = 0; x < this.img.width / (int) Math.pow(2, lv - 1); x++) {
@@ -192,15 +211,26 @@ public class CompressDWT {
                     // Low Pass
                     indK = x + (lp + k) * this.img.width;
                     lpRed = (this.img.imageChannels.red[ind1] + this.img.imageChannels.red[ind2]) / 2.0;
+                    lpGreen = (this.img.imageChannels.green[ind1] + this.img.imageChannels.green[ind2]) / 2.0;
+                    lpBlue = (this.img.imageChannels.blue[ind1] + this.img.imageChannels.blue[ind2]) / 2.0;
                     this.img.channelsDWT.red[indK] = lpRed;
+                    this.img.channelsDWT.green[indK] = lpGreen;
+                    this.img.channelsDWT.blue[indK] = lpBlue;
 
                     // High Pass
                     indK = x + (hp + k) * this.img.width;
                     hpRed = (this.img.imageChannels.red[ind1] - this.img.imageChannels.red[ind2]) / 2.0;
+                    hpGreen = (this.img.imageChannels.green[ind1] - this.img.imageChannels.green[ind2]) / 2.0;
+                    hpBlue = (this.img.imageChannels.blue[ind1] - this.img.imageChannels.blue[ind2]) / 2.0;
                     this.img.channelsDWT.red[indK] = hpRed;
+                    this.img.channelsDWT.green[indK] = hpGreen;
+                    this.img.channelsDWT.blue[indK] = hpBlue;
                 }
             }
             this.img.imageChannels.red = Arrays.copyOf(this.img.channelsDWT.red, this.img.imageChannels.red.length);
+            this.img.imageChannels.green = Arrays.copyOf(this.img.channelsDWT.green,
+                    this.img.imageChannels.green.length);
+            this.img.imageChannels.blue = Arrays.copyOf(this.img.channelsDWT.blue, this.img.imageChannels.blue.length);
 
         }
     }
@@ -225,10 +255,23 @@ public class CompressDWT {
                     indLP = x + (lp + k) * this.img.width;
                     indHP = x + (hp + k) * this.img.width;
 
+                    // Red
                     this.img.channelsIDWT.red[ind1] = this.img.imageChannels.red[indLP]
                             + this.img.imageChannels.red[indHP];
                     this.img.channelsIDWT.red[ind2] = this.img.imageChannels.red[indLP]
                             - this.img.imageChannels.red[indHP];
+
+                    // Green
+                    this.img.channelsIDWT.green[ind1] = this.img.imageChannels.green[indLP]
+                            + this.img.imageChannels.green[indHP];
+                    this.img.channelsIDWT.green[ind2] = this.img.imageChannels.green[indLP]
+                            - this.img.imageChannels.green[indHP];
+
+                    // Blue
+                    this.img.channelsIDWT.blue[ind1] = this.img.imageChannels.blue[indLP]
+                            + this.img.imageChannels.blue[indHP];
+                    this.img.channelsIDWT.blue[ind2] = this.img.imageChannels.blue[indLP]
+                            - this.img.imageChannels.blue[indHP];
                 }
             }
             for (int x = 0; x < this.img.width / (int) Math.pow(2, lv - 1); x++) {
@@ -237,6 +280,8 @@ public class CompressDWT {
                     ind1 = x + (y) * this.img.width;
 
                     this.img.imageChannels.red[ind1] = this.img.channelsIDWT.red[ind1];
+                    this.img.imageChannels.green[ind1] = this.img.channelsIDWT.green[ind1];
+                    this.img.imageChannels.blue[ind1] = this.img.channelsIDWT.blue[ind1];
                 }
             }
 
@@ -249,10 +294,23 @@ public class CompressDWT {
                     indLP = (lp + k) + y * this.img.width;
                     indHP = (hp + k) + y * this.img.width;
 
+                    // Red
                     this.img.channelsIDWT.red[ind1] = this.img.imageChannels.red[indLP] +
                             this.img.imageChannels.red[indHP];
                     this.img.channelsIDWT.red[ind2] = this.img.imageChannels.red[indLP] -
                             this.img.imageChannels.red[indHP];
+
+                    // Green
+                    this.img.channelsIDWT.green[ind1] = this.img.imageChannels.green[indLP]
+                            + this.img.imageChannels.green[indHP];
+                    this.img.channelsIDWT.green[ind2] = this.img.imageChannels.green[indLP]
+                            - this.img.imageChannels.green[indHP];
+
+                    // Blue
+                    this.img.channelsIDWT.blue[ind1] = this.img.imageChannels.blue[indLP]
+                            + this.img.imageChannels.blue[indHP];
+                    this.img.channelsIDWT.blue[ind2] = this.img.imageChannels.blue[indLP]
+                            - this.img.imageChannels.blue[indHP];
                 }
             }
             for (int x = 0; x < this.img.width / (int) Math.pow(2, lv - 1); x++) {
@@ -261,13 +319,11 @@ public class CompressDWT {
                     ind1 = x + (y) * this.img.width;
 
                     this.img.imageChannels.red[ind1] = this.img.channelsIDWT.red[ind1];
+                    this.img.imageChannels.green[ind1] = this.img.channelsIDWT.green[ind1];
+                    this.img.imageChannels.blue[ind1] = this.img.channelsIDWT.blue[ind1];
                 }
             }
 
-            // this.renderImage(this.img.channelsIDWT);
-            // this.renderImage(this.img.channelsDWT);
-            // if (lv == 2)
-            // break;
         }
 
     }
@@ -284,8 +340,12 @@ public class CompressDWT {
 
                 if (x >= coeffDim || y >= coeffDim) {
                     this.img.imageChannels.red[ind] = 0;
+                    this.img.imageChannels.green[ind] = 0;
+                    this.img.imageChannels.blue[ind] = 0;
                 } else {
                     this.img.imageChannels.red[ind] = this.img.channelsDWT.red[ind];
+                    this.img.imageChannels.green[ind] = this.img.channelsDWT.green[ind];
+                    this.img.imageChannels.blue[ind] = this.img.channelsDWT.blue[ind];
                 }
             }
         }
@@ -300,26 +360,22 @@ public class CompressDWT {
 
                 this.extractCoefficients(x);
                 this.inverseDWT(9);
-                this.renderImage(this.img.channelsIDWT);
+                this.renderImage(this.img.channelsIDWT, x > 0);
 
                 try {
-                    Thread.sleep(300);
+                    Thread.sleep(SLEEP_TIME);
                 } catch (InterruptedException e) {
                     System.err.println("Some error occurred - Cannot put thread to Sleep");
                     System.exit(0);
                 }
             }
         } else {
-            this.renderImage(this.img.imageChannels);
+            // this.renderImage(this.img.imageChannels, false);
             this.performDWT(9);
-            this.renderImage(this.img.imageChannels);
             this.extractCoefficients(lowpassLevel);
-            this.renderImage(this.img.imageChannels);
             this.inverseDWT(9);
-            this.renderImage(this.img.channelsIDWT);
+            this.renderImage(this.img.channelsIDWT, false);
         }
-
-        // this.renderImage(this.img.channelsDWT);
     }
 
     public static void main(String[] args) {
