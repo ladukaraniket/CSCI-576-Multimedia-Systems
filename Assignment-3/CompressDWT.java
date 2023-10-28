@@ -105,8 +105,8 @@ public class CompressDWT {
                 int g = (int) channels.green[ind];
                 int b = (int) channels.blue[ind];
 
-                int pix = 0xff000000 | ((r  << 16) | (g << 8) | (b));
-                
+                int pix = 0xff000000 | ((r << 16) | (g << 8) | (b));
+
                 // TODO remove try catch
                 try {
                     this.frameImage.setRGB(x, y, pix);
@@ -354,8 +354,9 @@ public class CompressDWT {
     public void compress() {
 
         if (this.lowpassLevel == -1) {
-            // Progressive
             this.performDWT(9);
+
+            // Progressive decoding
             for (int x = 0; x <= 9; x++) {
 
                 this.extractCoefficients(x);
