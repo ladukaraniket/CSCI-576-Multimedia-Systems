@@ -1,11 +1,9 @@
-import java.awt.image.BufferedImage;
-import java.awt.GridBagLayout;
 import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.IntBuffer;
 import java.util.Arrays;
 import java.util.stream.Stream;
 
@@ -238,9 +236,6 @@ public class CompressDWT {
 
     public void inverseDWT(int dwtLevel) {
         int ind1, ind2, indLP, indHP;
-
-        int lpRed, lpGreen, lpBlue;
-        int hpRed, hpGreen, hpBlue;
 
         for (int lv = dwtLevel; lv >= 1; lv--) {
 
