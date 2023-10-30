@@ -62,12 +62,12 @@ class Image {
                     .mapToDouble(i -> i)
                     .toArray();
 
-            this.imageChannels.green = Stream.generate(() -> blueBuff.get()).limit(redBuff.capacity())
+            this.imageChannels.green = Stream.generate(() -> greenBuff.get()).limit(greenBuff.capacity())
                     .map(b -> b & 0xff)
                     .mapToDouble(i -> i)
                     .toArray();
 
-            this.imageChannels.green = Stream.generate(() -> greenBuff.get()).limit(redBuff.capacity())
+            this.imageChannels.blue = Stream.generate(() -> blueBuff.get()).limit(blueBuff.capacity())
                     .map(b -> b & 0xff)
                     .mapToDouble(i -> i)
                     .toArray();
